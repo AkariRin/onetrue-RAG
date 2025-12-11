@@ -1,0 +1,8 @@
+[project]
+name = "sb6657-rag-generator"
+version = "0.1.0"
+description = ""
+requires-python = ">=3.14"
+dependencies = [
+    "requests>=2.31.0",
+]
