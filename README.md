@@ -1,3 +1,3 @@
-# sb6657 RAG Generator
+# oneture RAG
 
-用于AI RAG的sb6657烂梗爬虫
+用于训练赛博玩出的数据爬虫

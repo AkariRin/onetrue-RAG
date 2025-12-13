@@ -123,7 +123,7 @@ def main():
 
     # 获取第一个烂梗的ID（最新的烂梗）
     first_item_id = all_items[0].get("id", "unknown") if all_items else "empty"
-    output_file = f"sb6657烂梗-{first_item_id}.txt"
+    output_file = f"datasets/sb6657烂梗-{first_item_id}.txt"
 
     # 写入文件
     print()
