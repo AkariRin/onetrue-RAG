@@ -1,8 +1,9 @@
 [project]
-name = "sb6657-rag-generator"
+name = "onetrue-rag"
 version = "0.1.0"
 description = ""
 requires-python = ">=3.14"
 dependencies = [
     "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
 ]
