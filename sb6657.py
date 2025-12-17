@@ -3,60 +3,9 @@ import json
 import sys
 import time
 from pathlib import Path
-from functools import wraps
-
-
-def retry_with_backoff(max_retries=3, initial_delay=1, backoff_factor=2):
-    """
-    HTTP请求重试装饰器，支持指数退避
-
-    参数:
-        max_retries: 最大重试次数（默认3次）
-        initial_delay: 初始延迟时间，单位秒（默认1秒）
-        backoff_factor: 退避因子（默认2，每次延迟翻倍）
-    """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            delay = initial_delay
-            last_exception: Exception | None = None
-
-            for attempt in range(max_retries + 1):
-                try:
-                    return func(*args, **kwargs)
-                except (requests.RequestException, json.JSONDecodeError) as e:
-                    last_exception = e
-                    if attempt < max_retries:
-                        print(f"请求失败 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
-                        print(f"等待 {delay} 秒后重试...")
-                        time.sleep(delay)
-                        delay *= backoff_factor
-                    else:
-                        print(f"请求失败，已达到最大重试次数 ({max_retries + 1} 次)")
-
-            # 所有重试都失败，抛出最后一个异常
-            if last_exception is not None:
-                raise last_exception
-
-        return wrapper
-    return decorator
 
 
 def main():
-    # 定义带重试的HTTP请求函数
-    @retry_with_backoff(max_retries=3, initial_delay=1, backoff_factor=2)
-    def fetch_tag_mapping(url):
-        """获取标签映射（带重试）"""
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        return response.json()
-
-    @retry_with_backoff(max_retries=3, initial_delay=1, backoff_factor=2)
-    def fetch_page_data(url, params):
-        """获取分页数据（带重试）"""
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-        return response.json()
 
     print("sb6657烂梗数据爬取工具")
     print()
@@ -88,7 +37,19 @@ def main():
     tag_mapping = {}
 
     try:
-        data = fetch_tag_mapping(tag_mapping_url)
+        data = None
+        for attempt in range(3):
+            try:
+                response = requests.get(tag_mapping_url, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                break
+            except (requests.RequestException, json.JSONDecodeError) as e:
+                if attempt < 2:
+                    print(f"请求失败: {e}，重试中...")
+                    time.sleep(1)
+                else:
+                    raise
 
         if data.get("code") == 200:
             items = data.get("data", [])
@@ -126,16 +87,24 @@ def main():
         }
 
         try:
-            data = fetch_page_data(url, params)
-        except Exception as e:
-            print(f"错误: 请求第 {page_num} 页失败: {e}", file=sys.stderr)
-            print("程序已退出")
-            sys.exit(1)
+            data = None
+            for attempt in range(3):
+                try:
+                    response = requests.get(url, params=params, timeout=30)
+                    response.raise_for_status()
+                    data = response.json()
+                    break
+                except (requests.RequestException, json.JSONDecodeError) as e:
+                    if attempt < 2:
+                        print(f"请求失败: {e}，重试中...")
+                        time.sleep(1)
+                    else:
+                        raise
 
-        if data.get("code") != 200:
-            print(f"错误: 获取第 {page_num} 页失败，响应码: {data.get('code')}", file=sys.stderr)
-            print("程序已退出")
-            sys.exit(1)
+            if data.get("code") != 200:
+                print(f"错误: 获取第 {page_num} 页失败，响应码: {data.get('code')}", file=sys.stderr)
+                print("程序已退出")
+                sys.exit(1)
 
         items = data.get("data", {}).get("list", [])
 
