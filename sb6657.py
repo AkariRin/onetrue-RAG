@@ -135,13 +135,16 @@ def main():
 
     # 处理标签映射和三元组生成
     processed_items = []
+    total_entity_chars = 0
+    total_entities = 0
+
     for item in all_items:
         item_id = item.get("id", "")
         barrage = item.get("barrage", "")
         tags = item.get("tags", "")
 
         # 将标签字符串映射为标签名称
-        mapped_tags_list = []
+        mapped_tags_list = ["烂梗"]  # 默认添加“烂梗”标签
         if tags:
             tag_list = tags.split(",")
             for tag in tag_list:
@@ -160,23 +163,32 @@ def main():
                     print("程序已退出")
                     sys.exit(1)
 
+        # 统计实体字符长度和单词数
+        for entity in mapped_tags_list:
+            total_entity_chars += len(entity)
+            total_entities += 1
+
         # 移除弹幕内容中的换行符，替换为空格
         barrage = barrage.replace("\n", " ").replace("\r", " ").strip()
 
         # 生成三元组：[标签名, 包含烂梗, 烂梗内容]
         triples = []
         for tag_name in mapped_tags_list:
-            triples.append([tag_name, "包含烂梗", barrage])
+            if not (tag_name == "烂梗"):
+                triples.append([tag_name, "包含烂梗", barrage])
 
         # 构建OpenIE格式的对象
         openie_item = {
             "idx": f"sb6657-{item_id}",
             "passage": barrage,
             "extracted_entities": mapped_tags_list,
-            "triples": triples
+            "extracted_triples": triples
         }
 
         processed_items.append(openie_item)
+
+    # 计算平均实体字符长度和单词数
+    avg_ent_chars = round(total_entity_chars / total_entities, 1) if total_entities > 0 else 0
 
     # 按1000条分段输出JSON文件
     segment_size = 1000
@@ -193,8 +205,14 @@ def main():
 
         print(f"正在写入文件: {output_file}")
 
+        segment_output = {
+            "docs": segment_items,
+            "avg_ent_chars": avg_ent_chars,
+            "avg_ent_words": 1.0
+        }
+
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(segment_items, f, ensure_ascii=False, indent=2)
+            json.dump(segment_output, f, ensure_ascii=False, indent=2)
 
     print(f"完成！共生成 {total_files} 个JSON文件，数据已保存到 openie 目录")
 
