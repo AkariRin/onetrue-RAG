@@ -1,6 +1,7 @@
 import requests
 import json
 import sys
+from pathlib import Path
 
 
 def main():
@@ -121,62 +122,81 @@ def main():
     # 统计数量
     amount = len(all_items)
 
-    # 获取第一个烂梗的ID（最新的烂梗）
-    first_item_id = all_items[0].get("id", "unknown") if all_items else "empty"
-    output_file = f"datasets/sb6657烂梗-{first_item_id}.txt"
+    # 创建openie输出目录
+    output_dir = Path("openie")
+    output_dir.mkdir(exist_ok=True)
 
-    # 写入文件
+    # 处理数据并分段输出为JSON
     print()
     print("[统计结果]")
-    print("f共获取 {amount} 个烂梗")
-    print("f最新烂梗ID: {first_item_id}")
+    print(f"共获取 {amount} 个烂梗")
     print()
-    print(f"正在写入文件: {output_file}")
+    print("正在生成OpenIE JSON文档...")
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        for i, item in enumerate(all_items):
-            # 格式化单个数据项
-            item_id = item.get("id", "")
-            barrage = item.get("barrage", "")
-            tags = item.get("tags", "")
+    # 处理标签映射和三元组生成
+    processed_items = []
+    for item in all_items:
+        item_id = item.get("id", "")
+        barrage = item.get("barrage", "")
+        tags = item.get("tags", "")
 
-            # 将标签字符串映射为标签名称
-            if not tags:
-                mapped_tags = ""
-            else:
-                tag_list = tags.split(",")
-                mapped_tags_list = []
-
-                for tag in tag_list:
-                    tag = tag.strip()
-                    if tag in tag_mapping:
-                        mapped_value = tag_mapping[tag]
-                        # 如果映射值为空，停止程序
-                        if not mapped_value:
-                            print(f"\n错误: 标签 '{tag}' 的映射值为空（烂梗ID: {item_id}）", file=sys.stderr)
-                            print("程序已退出")
-                            sys.exit(1)
-                        mapped_tags_list.append(mapped_value)
-                    else:
-                        # 未知标签，停止程序
-                        print(f"\n错误: 遇到未知标签 '{tag}'（烂梗ID: {item_id}）", file=sys.stderr)
+        # 将标签字符串映射为标签名称
+        mapped_tags_list = []
+        if tags:
+            tag_list = tags.split(",")
+            for tag in tag_list:
+                tag = tag.strip()
+                if tag in tag_mapping:
+                    mapped_value = tag_mapping[tag]
+                    # 如果映射值为空，停止程序
+                    if not mapped_value:
+                        print(f"\n错误: 标签 '{tag}' 的映射值为空", file=sys.stderr)
                         print("程序已退出")
                         sys.exit(1)
+                    mapped_tags_list.append(mapped_value)
+                else:
+                    # 未知标签，停止程序
+                    print(f"\n错误: 遇到未知标签 '{tag}'", file=sys.stderr)
+                    print("程序已退出")
+                    sys.exit(1)
 
-                mapped_tags = ",".join(mapped_tags_list)
+        # 移除弹幕内容中的换行符，替换为空格
+        barrage = barrage.replace("\n", " ").replace("\r", " ").strip()
 
-            # 移除弹幕内容中的换行符，替换为空格
-            barrage = barrage.replace("\n", " ").replace("\r", " ").strip()
+        # 生成三元组：[标签名, 包含烂梗, 烂梗内容]
+        triples = []
+        for tag_name in mapped_tags_list:
+            triples.append([tag_name, "包含烂梗", barrage])
 
-            line = f"[烂梗{item_id}] 标签: {mapped_tags} 弹幕:{barrage}"
+        # 构建OpenIE格式的对象
+        openie_item = {
+            "idx": f"sb6657-{item_id}",
+            "passage": barrage,
+            "extracted_entities": mapped_tags_list,
+            "triples": triples
+        }
 
-            f.write(line)
-            # 在每个条目后添加两个换行符（一个结束当前行，一个作为空行）
-            # 最后一个条目不添加换行符
-            if i < len(all_items) - 1:
-                f.write("\n\n")
+        processed_items.append(openie_item)
 
-    print(f"完成！数据已保存到 {output_file}")
+    # 按1000条分段输出JSON文件
+    segment_size = 1000
+    total_files = (len(processed_items) + segment_size - 1) // segment_size
+
+    for segment_idx in range(total_files):
+        start_idx = segment_idx * segment_size
+        end_idx = min(start_idx + segment_size, len(processed_items))
+
+        segment_items = processed_items[start_idx:end_idx]
+        first_item_id = segment_items[0]["idx"].split("-")[1]  # 获取第一个烂梗的ID
+
+        output_file = output_dir / f"sb6657-{first_item_id}.json"
+
+        print(f"正在写入文件: {output_file}")
+
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(segment_items, f, ensure_ascii=False, indent=2)
+
+    print(f"完成！共生成 {total_files} 个JSON文件，数据已保存到 openie 目录")
 
 
 if __name__ == "__main__":
