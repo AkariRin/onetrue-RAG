@@ -106,7 +106,11 @@ def main():
                 print("程序已退出")
                 sys.exit(1)
 
-        items = data.get("data", {}).get("list", [])
+            items = data.get("data", {}).get("list", [])
+        except Exception as e:
+            print(f"错误: 获取第 {page_num} 页失败: {e}", file=sys.stderr)
+            print("程序已退出")
+            sys.exit(1)
 
         if not items:
             print(f"第 {page_num} 页没有数据，停止爬取")
@@ -181,10 +185,10 @@ def main():
         # 移除弹幕内容中的换行符，替换为空格
         barrage = barrage.replace("\n", " ").replace("\r", " ").strip()
 
-        # 转义XML中不合法的字符为数值字符引用
+        # 清理XML中不合法的字符
         # XML有效字符范围：
         # - #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
-        # 超出范围的字符转换为 &#xNNNN; 形式
+        # 超出范围的字符直接删除
         if barrage:
             result = []
             for char in barrage:
@@ -195,10 +199,16 @@ def main():
                     (0xE000 <= code <= 0xFFFD) or
                     (0x10000 <= code <= 0x10FFFF)):
                     result.append(char)
-                else:
-                    # 将超出范围的字符转换为XML数值字符引用
-                    result.append(f'&#x{code:X};')
-            barrage = ''.join(result)
+                # 超出范围的字符直接跳过（删除）
+            barrage = ''.join(result).strip()
+
+        # 转义XML特殊字符，防止XML解析错误
+        # 必须先转义 & 字符，因为其他转义会产生 &
+        barrage = barrage.replace('&', '&amp;')
+        barrage = barrage.replace('<', '&lt;')
+        barrage = barrage.replace('>', '&gt;')
+        barrage = barrage.replace('"', '&quot;')
+        barrage = barrage.replace("'", '&apos;')
 
         # 生成三元组：[标签名, 包含烂梗, 烂梗内容]
         triples = []
